@@ -1,0 +1,131 @@
+{
+  "AWSTemplateFormatVersion": "2010-09-09",
+  "Description": "The template used to create an ECS Service from the ECS Console.",
+  "Parameters": {
+    "ECSClusterName": {
+      "Type": "String",
+      "Default": "democlus1"
+    },
+    "SecurityGroupIDs": {
+      "Type": "CommaDelimitedList",
+      "Default": "sg-071d954b4b71f889a"
+    },
+    "SubnetIDs": {
+      "Type": "CommaDelimitedList",
+      "Default": "subnet-0df47af0b10c81600,subnet-07f4fb7782126382b,subnet-01fcfd3d0d704410b,subnet-0dd5fdc5603d40744,subnet-0be4d9aef4d39c945,subnet-0ae99afddb9a6b09a"
+    },
+    "VpcID": {
+      "Type": "String",
+      "Default": "vpc-042a8583ae99a1413"
+    },
+    "LoadBalancerName": {
+      "Type": "String",
+      "Default": ""
+    }
+  },
+  "Resources": {
+    "ECSService": {
+      "Type": "AWS::ECS::Service",
+      "Properties": {
+        "Cluster": "democlus1",
+        "CapacityProviderStrategy": [
+          {
+            "CapacityProvider": "FARGATE",
+            "Base": 0,
+            "Weight": 1
+          }
+        ],
+        "TaskDefinition": "arn:aws:ecs:us-east-1:115875789612:task-definition/demotd1:3",
+        "ServiceName": "demoecs1",
+        "SchedulingStrategy": "REPLICA",
+        "DesiredCount": 1,
+        "NetworkConfiguration": {
+          "AwsvpcConfiguration": {
+            "AssignPublicIp": "ENABLED",
+            "SecurityGroups": {
+              "Ref": "SecurityGroupIDs"
+            },
+            "Subnets": {
+              "Ref": "SubnetIDs"
+            }
+          }
+        },
+        "PlatformVersion": "LATEST",
+        "DeploymentConfiguration": {
+          "MaximumPercent": 200,
+          "MinimumHealthyPercent": 100,
+          "DeploymentCircuitBreaker": {
+            "Enable": true,
+            "Rollback": true
+          }
+        },
+        "DeploymentController": {
+          "Type": "ECS"
+        },
+        "ServiceConnectConfiguration": {
+          "Enabled": false
+        },
+        "Tags": [],
+        "EnableECSManagedTags": true
+      }
+    },
+    "AutoScalingTarget": {
+      "Type": "AWS::ApplicationAutoScaling::ScalableTarget",
+      "Properties": {
+        "MaxCapacity": "2",
+        "MinCapacity": "1",
+        "ResourceId": "service/democlus1/demoecs1",
+        "RoleARN": "arn:aws:iam::115875789612:role/aws-service-role/ecs.application-autoscaling.amazonaws.com/AWSServiceRoleForApplicationAutoScaling_ECSService",
+        "ScalableDimension": "ecs:service:DesiredCount",
+        "ServiceNamespace": "ecs"
+      },
+      "DependsOn": [
+        "ECSService"
+      ]
+    },
+    "AutoScalingPolicy": {
+      "Type": "AWS::ApplicationAutoScaling::ScalingPolicy",
+      "Properties": {
+        "PolicyName": "cpu70threshold",
+        "PolicyType": "TargetTrackingScaling",
+        "ResourceId": "service/democlus1/demoecs1",
+        "ScalingTargetId": {
+          "Ref": "AutoScalingTarget"
+        },
+        "TargetTrackingScalingPolicyConfiguration": {
+          "DisableScaleIn": false,
+          "ScaleInCooldown": "300",
+          "ScaleOutCooldown": "300",
+          "TargetValue": "70",
+          "PredefinedMetricSpecification": {
+            "PredefinedMetricType": "ECSServiceAverageCPUUtilization"
+          }
+        }
+      }
+    }
+  },
+  "Outputs": {
+    "ClusterName": {
+      "Description": "The cluster used to create the service.",
+      "Value": {
+        "Ref": "ECSClusterName"
+      }
+    },
+    "ECSService": {
+      "Description": "The created service.",
+      "Value": {
+        "Ref": "ECSService"
+      }
+    },
+    "AutoScalingTarget": {
+      "Value": {
+        "Ref": "AutoScalingTarget"
+      }
+    },
+    "AutoScalingPolicy": {
+      "Value": {
+        "Ref": "AutoScalingPolicy"
+      }
+    }
+  }
+}
